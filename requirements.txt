@@ -1,0 +1,11 @@
+apify-client
+firecrawl-py
+python-dotenv
+requests
+httpx
+pydantic
+aiohttp
+langgraph
+langchain-google-genai
+matplotlib
+reportlab
