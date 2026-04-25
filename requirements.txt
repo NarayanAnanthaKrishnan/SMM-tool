@@ -1,11 +1,13 @@
+# Extraction
 apify-client
-firecrawl-py
-python-dotenv
 requests
-httpx
-pydantic
-aiohttp
+python-dotenv
+
+# Processing & Analysis
 langgraph
 langchain-google-genai
+langchain-core
+pydantic
+
+# Visualization
 matplotlib
-reportlab

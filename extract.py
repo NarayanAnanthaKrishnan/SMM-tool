@@ -1,131 +1,157 @@
 import os
 import sys
 import json
+import re
 from dotenv import load_dotenv
 from apify_client import ApifyClient
-from firecrawl import FirecrawlApp
+from web_scraper import scrape_website
 
-# Load environment variables
 load_dotenv()
 
-APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN')
-FIRECRAWL_API_KEY = os.getenv('FIRECRAWL_API_KEY')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
-if not APIFY_API_TOKEN or not FIRECRAWL_API_KEY:
-    print("Missing APIFY_API_TOKEN or FIRECRAWL_API_KEY in .env file")
+APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN')
+if not APIFY_API_TOKEN:
+    print("Error: Missing APIFY_API_TOKEN in .env file")
     sys.exit(1)
 
-# Initialize clients
 apify_client = ApifyClient(APIFY_API_TOKEN)
-firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
+
+
+def smart_truncate_caption(text, max_len=450):
+    """Preserves Hook (start) and CTA (end) where conversion metrics live."""
+    if not text or len(text) <= max_len:
+        return text
+    return text[:220] + "\n... [Middle Content Pruned] ...\n" + text[-220:]
+
+
+def clean_payload(data):
+    """Final pruning to optimize tokens for the LLM agent."""
+    cleaned = json.loads(json.dumps(data))
+    if "social" in cleaned:
+        for post in cleaned["social"].get("latest_posts", []):
+            post.pop("videoUrl", None)
+            if post.get("caption"):
+                post["caption"] = smart_truncate_caption(post["caption"])
+    return cleaned
+
 
 def scrape_instagram(username):
-    """
-    Scrapes Instagram profile and latest posts using Apify
-    """
+    """Handles all Instagram data extraction via Apify."""
     print(f"\n[Instagram] Scraping @{username}...")
-    
     run_input = {
         "directUrls": [f"https://www.instagram.com/{username}/"],
-        "resultsLimit": 5,
+        "resultsLimit": 12,  # ← CHANGED from 5: gives more posts to filter from
         "addParentData": True,
         "fields": [
-            "shortCode", "type", "caption", "videoUrl", 
-            "videoViewCount", "likesCount", "owner.followersCount", "owner.externalUrl"
+            "shortCode", "type", "caption", "videoUrl", "videoViewCount",
+            "likesCount", "commentsCount", "timestamp",
+            "owner.externalUrl", "owner.followersCount", "owner.biography",
+            "owner.followsCount", "owner.postsCount",
+            "owner.isVerified", "owner.isBusinessAccount",
+            "owner.businessCategoryName", "owner.profilePicUrl",
+            "externalUrl", "followersCount", "biography", "followsCount", "postsCount",
+            "isVerified", "isBusinessAccount", "categoryName", "profilePicUrl"
         ],
         "proxyConfiguration": {"useApifyProxy": True},
     }
 
-    # Run the actor and wait for it to finish
-    run = apify_client.actor("apify/instagram-scraper").call(run_input=run_input)
-
-    # Fetch results
-    items = list(apify_client.dataset(run["defaultDatasetId"]).iterate_items())
-
-    if not items:
-        raise Exception("No Instagram data found.")
-
-    first_item = items[0]
-    owner = first_item.get('owner', {})
-    bio_link = owner.get('externalUrl') or first_item.get('externalUrl')
-
-    social_data = {
-        "username": username,
-        "followers": owner.get('followersCount', 0),
-        "latest_posts": [
-            {
-                "url": f"https://www.instagram.com/p/{item.get('shortCode')}/",
-                "type": item.get('type'),
-                "videoUrl": item.get('videoUrl'),
-                "caption": item.get('caption', ''),
-                "views": item.get('videoViewCount', 0),
-                "likes": item.get('likesCount', 0)
-            } for item in items
-        ]
-    }
-
-    return social_data, bio_link
-
-def scrape_website(url):
-    """
-    Scrapes a website and returns Markdown using Firecrawl
-    """
-    if not url:
-        return {"url": None, "content": "No URL provided"}
-    
-    print(f"\n[Firecrawl] Scraping {url}...")
     try:
-        # Firecrawl v1 Python SDK method
-        scrape_result = firecrawl_app.scrape_url(url, params={'formats': ['markdown']})
-        
-        # Firecrawl returns a dict or object depending on version
-        # Usually: {'success': True, 'markdown': '...'} or data nested
-        if isinstance(scrape_result, dict):
-            return {
-                "url": url,
-                "content": scrape_result.get('markdown') or scrape_result.get('data', {}).get('markdown') or "Empty content"
-            }
-        else:
-            # If it returns an object
-            return {
-                "url": url,
-                "content": getattr(scrape_result, 'markdown', None) or "Empty content"
-            }
-            
+        run = apify_client.actor("apify/instagram-scraper").call(run_input=run_input)
+        raw_items = list(apify_client.dataset(run["defaultDatasetId"]).iterate_items())
+
+        if not raw_items:
+            raise Exception("Instagram scraper returned zero results.")
+
+        first_item = raw_items[0]
+        owner = first_item.get('owner', {})
+
+        # Resilient metric mapping — check all possible paths
+        followers = owner.get('followersCount') or first_item.get('followersCount') or owner.get('edge_followed_by', {}).get('count') or 0
+        following = owner.get('followsCount') or first_item.get('followsCount') or owner.get('edge_follow', {}).get('count') or 0
+        posts_total = owner.get('postsCount') or first_item.get('postsCount') or owner.get('edge_owner_to_timeline_media', {}).get('count') or 0
+
+        bio_text = owner.get('biography') or first_item.get('biography') or owner.get('description', '') or ""
+        bio_link = owner.get('externalUrl') or first_item.get('externalUrl') or owner.get('website')
+
+        # Fallback: regex scan bio text for URLs
+        if not bio_link and bio_text:
+            found_urls = re.findall(r'(https?://[^\s]+)', bio_text)
+            if found_urls:
+                bio_link = found_urls[0]
+
+        # ── NEW: Additional profile metadata ──
+        is_verified = owner.get('isVerified') or first_item.get('isVerified') or False
+        is_business = owner.get('isBusinessAccount') or first_item.get('isBusinessAccount') or False
+        category = owner.get('businessCategoryName') or first_item.get('categoryName') or ""
+        profile_pic = owner.get('profilePicUrl') or first_item.get('profilePicUrl') or ""
+
+        social_data = {
+            "username": username,
+            "bio": bio_text,
+            "followers": followers,
+            "following": following,
+            "total_posts": posts_total,
+            "website_url": bio_link,
+            "is_verified": is_verified,
+            "is_business": is_business,
+            "category": category,
+            "profile_pic_url": profile_pic,
+            "latest_posts": []
+        }
+
+        for item in raw_items:
+            if item.get('shortCode'):
+                views = item.get('videoViewCount') or item.get('videoPlayCount') or item.get('playCount') or 0
+                social_data["latest_posts"].append({
+                    "url": f"https://www.instagram.com/p/{item.get('shortCode')}/",
+                    "type": item.get('type'),
+                    "caption": item.get('caption', ''),
+                    "views": views,
+                    "likes": item.get('likesCount', 0),
+                    "comments": item.get('commentsCount', 0),
+                    "timestamp": item.get('timestamp')
+                })
+
+        social_data["latest_posts"] = sorted(
+            social_data["latest_posts"],
+            key=lambda x: x['timestamp'] or '',
+            reverse=True
+        )
+
+        print(f"  ✓ Profile: {followers} followers, {posts_total} total posts, {len(social_data['latest_posts'])} scraped")
+        if is_verified:
+            print(f"  ✓ Verified account")
+        if category:
+            print(f"  ✓ Category: {category}")
+
+        return social_data, bio_link
+
     except Exception as e:
-        return {"url": url, "content": f"Firecrawl Exception: {str(e)}"}
+        print(f"✖ Instagram Extraction Failed: {str(e)}")
+        raise
+
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python extract.py <username>      # Full extraction")
-        print("  python extract.py <url>           # Website only (test Firecrawl)")
+        print("Usage: python extract.py <username>")
         sys.exit(1)
 
-    target = sys.argv[1]
-
+    username = sys.argv[1].strip().lstrip("@")
     try:
-        result = {}
+        social_data, bio_link = scrape_instagram(username)
+        web_data = scrape_website(bio_link)
 
-        if target.startswith('http'):
-            # MODE: Website Only
-            web_data = scrape_website(target)
-            result = {"website": web_data}
-        else:
-            # MODE: Full Extraction
-            social_data, bio_link = scrape_instagram(target)
-            web_data = scrape_website(bio_link)
-            
-            result = {
-                "social": social_data,
-                "website": web_data
-            }
+        full_payload = {"social": social_data, "website": web_data}
+        optimized_payload = clean_payload(full_payload)
 
         print("\n--- Final Payload ---")
-        print(json.dumps(result, indent=2))
+        print(json.dumps(optimized_payload, indent=2, ensure_ascii=False))
 
     except Exception as e:
-        print(f"\n✖ Pipeline Failed: {str(e)}")
+        print(f"\n✖ Pipeline Error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
