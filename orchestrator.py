@@ -215,6 +215,10 @@ WEBSITE FUNNEL AUDIT:
 
 Provide your strategic interpretation. Reference the EXACT numbers above.
 Use the CLEAN engagement rate (not raw) when discussing engagement performance.
+
+AUDITOR CONTEXT (from the person running this audit):
+{processed.get('user_context', 'None provided — give a general-purpose audit.')}
+If context is provided, tailor your interpretation and recommendations to their specific goal.
 """
 
     structured_llm = llm.with_structured_output(AnalysisResult)
@@ -344,6 +348,10 @@ RULES:
 5. Tone: professional but warm, like a peer, not a salesperson.
 6. NEVER invent numbers. Only use what's provided above.
 7. Use the CLEAN engagement rate, not the raw rate.
+
+AUDITOR'S GOAL:
+{processed.get('user_context', 'General outreach — position as a social media strategist offering to help.')}
+Tailor the angle and positioning of the message to this goal if provided.
 """
 
     structured_llm = llm.with_structured_output(OutreachMessage)

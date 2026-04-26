@@ -12,11 +12,10 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 APIFY_API_TOKEN = os.getenv('APIFY_API_TOKEN')
-if not APIFY_API_TOKEN:
-    print("Error: Missing APIFY_API_TOKEN in .env file")
-    sys.exit(1)
 
-apify_client = ApifyClient(APIFY_API_TOKEN)
+# Delay creation of ApifyClient until the scraping function is invoked.
+# This avoids exiting at import-time (which would crash app.py when it imports extract).
+apify_client = None
 
 
 def smart_truncate_caption(text, max_len=450):
@@ -39,6 +38,14 @@ def clean_payload(data):
 
 def scrape_instagram(username):
     """Handles all Instagram data extraction via Apify."""
+    if not APIFY_API_TOKEN:
+        raise RuntimeError("APIFY_API_TOKEN is not set. Cannot scrape Instagram.")
+
+    # initialize client lazily so import-time doesn't require the token
+    global apify_client
+    if apify_client is None:
+        apify_client = ApifyClient(APIFY_API_TOKEN)
+
     print(f"\n[Instagram] Scraping @{username}...")
     run_input = {
         "directUrls": [f"https://www.instagram.com/{username}/"],

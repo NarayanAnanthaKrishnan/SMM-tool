@@ -78,7 +78,7 @@ def main():
     print(f"  ✓ Raw data saved → {raw_path}")
 
     # Step 3: Run LangGraph analysis
-    run_id = str(uuid.uuid4())[:8]  # Short ID for cleaner folder names
+    run_id = str(uuid.uuid4())[:6]  # Short ID for cleaner folder names
     print(f"\n--- Phase 2: Strategic Audit (LangGraph) [Run: {run_id}] ---")
 
     result = subprocess.run(
