@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #0ea5a4;
+  --color-accent: #fb7185;
+}
+
+/* Custom theme colors as CSS variables for better detection */
+@layer base {
+  .text-primary {
+    color: var(--color-primary);
+  }
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  .bg-primary\/10 {
+    background-color: rgba(14, 165, 164, 0.1);
+  }
+  .bg-primary\/20 {
+    background-color: rgba(14, 165, 164, 0.2);
+  }
+  .text-accent {
+    color: var(--color-accent);
+  }
+  .bg-accent {
+    background-color: var(--color-accent);
+  }
+  .bg-accent\/10 {
+    background-color: rgba(251, 113, 133, 0.1);
+  }
+  .from-primary {
+    --tw-gradient-from: var(--color-primary);
+  }
+  .to-primary\/80 {
+    --tw-gradient-to: rgba(14, 165, 164, 0.8);
+  }
+  .to-accent {
+    --tw-gradient-to: var(--color-accent);
+  }
+  .to-accent\/10 {
+    --tw-gradient-to: rgba(251, 113, 133, 0.1);
+  }
+}
+
+/* Additional gradient utilities */
+@layer utilities {
+  .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
+  }
+  .bg-gradient-to-r {
+    background-image: linear-gradient(to right, var(--tw-gradient-stops));
+  }
+}

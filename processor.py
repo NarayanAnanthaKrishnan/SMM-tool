@@ -114,7 +114,7 @@ def compute_credibility(social: dict) -> dict:
     followers = social["followers"]
     following = social["following"]
 
-    ratio = round(followers / following, 2) if following > 0 else float("inf")
+    ratio = round(followers / following, 2) if following > 0 else 999999
 
     if ratio > 2.0:
         ratio_signal = "strong"
@@ -257,7 +257,7 @@ def compute_engagement(posts: list, followers: int) -> dict:
         "total_comments": total_comments,
         "best_post": per_post_sorted[0] if per_post_sorted else None,
         "worst_post": per_post_sorted[-1] if per_post_sorted else None,
-        "likes_to_comments_ratio": round(total_likes / total_comments, 2) if total_comments > 0 else float("inf"),
+        "likes_to_comments_ratio": round(total_likes / total_comments, 2) if total_comments > 0 else 999999,
         "outlier_detection": {
             "has_outliers": outlier_info["has_outliers"],
             "outlier_count": len(outlier_info["outlier_values"]),

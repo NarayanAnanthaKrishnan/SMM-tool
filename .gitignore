@@ -1,15 +1,50 @@
+# Environment
 .env
+.env.local
 venv/
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 .ipynb_checkpoints
+.pyc
+.pyo
+
+# Editor
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# Build & Dist
 dist/
 build/
 *.spec
-node_modules/
+*.egg-info/
+
+# Data & Output
 output.txt
 report_summary.txt
 raw_data_*.json
+runs/
+current_audit_data.json
+
+# Output folders from orchestrator
+output/
+
+# Next.js frontend
+frontend/.next/
+frontend/node_modules/
+frontend/package-lock.json
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
