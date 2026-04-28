@@ -1,50 +1,108 @@
-# InstaConsultant Pipeline - Context
+# InstaConsultant - Social Media Audit Tool
 
-## Objective
-Build an agentic automation tool for Social Media Managers (SMMs) to perform instant account audits and outreach.
+AI-powered Instagram profile auditing tool for Social Media Managers (SMMs). Get actionable insights, engagement benchmarks, content analysis, and personalized outreach messages.
 
-## Current Progress (Phase 1 Complete)
-- **Environment:** Switched from Node.js to Python.
-- **Scraper Engine:** Implemented `extract.py` which:
-  1. Scrapes Instagram profile data & latest 5 posts using Apify.
-  2. Finds the bio link and scrapes the destination website using Jina AI (Markdown mode).
-  3. Uses Firecrawl as a premium fallback if Jina is blocked.
-- **Goal:** The output of this script (JSON payload) must be passed to a LangGraph-based agentic workflow for Analysis and Report Generation.
+## Features
 
-## Technology Stack
-- **Languages:** Python 3.10+
-- **APIs:** Apify (Instagram), Jina AI (Reader), Firecrawl (Fallback Scrape), Gemini 1.5 Pro (Brain).
-- **Architecture Goal:** A stateful LangGraph workflow.
+- **Profile Validation** - Quick Instagram username validation without using API credits
+- **Engagement Analysis** - Clean engagement rates with tiered benchmarks
+- **Content Strategy** - Format mix analysis, posting cadence, and content theme detection
+- **Website Funnel Audit** - Scans bio link and evaluates conversion elements
+- **AI Outreach Generator** - Personalized DM/email templates ready to send
+- **Chat Widget** - Follow-up conversations about the audit results
+- **Interactive Charts** - Visual representations of key metrics
 
-# Phase 2: The Agentic Brain & Analysis
+## Tech Stack
 
-## Task Overview
-Implement a LangGraph state machine that takes the JSON output from `extract.py` and performs a "Strategic Audit."
+- **Backend**: Python 3.10+, FastAPI, LangGraph, LangChain, Gemini AI
+- **Scraping**: Apify (Instagram), Jina AI / Firecrawl (Website)
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
 
-## 1. Define LangGraph State
-Create a `TypedDict` or Pydantic `State` object to store:
-- `raw_data`: (The JSON from Phase 1)
-- `analysis`: (Structured findings: engagement, format mix, website friction)
-- `report_config`: (A JSON list of which charts to generate based on data density)
-- `outreach_draft`: (Optional string)
+## Quick Start
 
-## 2. Implement the "Smart Analyst" Node (Gemini 2.5 flashlight)
-This node must:
-- **Calculate Benchmarks:** - < 1.0% Engagement = "Bad"
-    - < 60% Reels = "Content Format Gap"
-    - Missing CTA/Lead Magnet on website = "Leaky Bucket"
-- **Density Logic:** - If < 3 posts, don't generate a trend chart; generate "Post Critique" cards instead.
-    - If Bio Link leads to a generic homepage, flag "Conversion Friction."
+### Backend (Python)
 
-## 3. Implement the "Visualizer" Node
-- Generate configuration JSON for `matplotlib`. 
-- Example: If the analyst flags "Format Gap," output: `{"chart_type": "pie", "data": [80, 20], "labels": ["Images", "Reels"]}`.
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-## 4. Dependencies to add
-- `langgraph`
-- `langchain-google-genai`
-- `matplotlib`
-- `reportlab` (for the final PDF generation)
+# Start the API server
+python -m uvicorn app:app --reload --port 8000
+```
 
-## Definition of Done
-The agent should be able to take a raw JSON file and output a `report_summary.txt` and a list of chart commands.
+### Frontend (Next.js)
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+The frontend will run on `http://localhost:3000` (or 3001 if 3000 is busy).
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/validate/{username}` | Quick profile validation |
+| POST | `/audit` | Start full audit pipeline |
+| GET | `/audit/{run_id}/status` | Poll pipeline progress |
+| GET | `/audit/{run_id}/results` | Get completed results |
+| POST | `/audit/{run_id}/chat` | Follow-up chat |
+| GET | `/runs` | List recent audits |
+
+## Environment Variables
+
+Create a `.env` file in the root directory:
+
+```
+APIFY_API_TOKEN=your_apify_token
+GOOGLE_API_KEY=your_google_api_key
+GEMINI_API_KEY=your_gemini_key
+FIRECRAWL_API_KEY=your_firecrawl_key  # optional
+JINA_API_KEY=your_jina_key  # optional
+```
+
+## Architecture
+
+```
+extract.py → processor.py → orchestrator.py (LangGraph)
+                    ↓
+              runs/{run_id}/
+              ├── processed_metrics.json
+              ├── analysis.json
+              ├── outreach.txt
+              ├── report_summary.txt
+              └── charts/
+```
+
+## Project Structure
+
+```
+SMM-tool/
+├── app.py              # FastAPI backend
+├── pipeline.py        # Pipeline orchestration
+├── processor.py      # Metrics calculation
+├── orchestrator.py    # LangGraph workflow
+├── extract.py         # Instagram scraper
+├── web_scraper.py     # Website scraper
+├── audit_chat.py      # Post-analysis chat
+├── frontend/          # Next.js frontend
+│   ├── app/
+│   │   ├── page.tsx           # Landing page
+│   │   └── results/[run_id]/ # Results page
+│   └── components/
+│       ├── SearchCard.tsx
+│       ├── RecentRuns.tsx
+│       └── ChatWidget.tsx
+├── runs/              # Audit outputs (gitignored)
+└── requirements.txt
+```
+
+## License
+
+MIT

@@ -117,6 +117,33 @@ export default function RunResults() {
   const report = results?.report || ''
   const charts = results?.charts || []
 
+  // Theme toggle handler
+  const [darkMode, setDarkMode] = useState(true)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme')
+      if (saved === 'light') {
+        setDarkMode(false)
+        document.documentElement.classList.remove('dark')
+      } else {
+        setDarkMode(true)
+        document.documentElement.classList.add('dark')
+      }
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !darkMode
+    setDarkMode(newMode)
+    if (newMode) {
+      document.documentElement.classList.add('dark')
+      localStorage.setItem('theme', 'dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+      localStorage.setItem('theme', 'light')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
@@ -132,6 +159,21 @@ export default function RunResults() {
             <Link href="/" className="text-slate-500 hover:text-primary text-sm">
               New Audit
             </Link>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+              aria-label="Toggle theme"
+            >
+              {darkMode ? (
+                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+              )}
+            </button>
             <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">Complete</span>
           </div>
         </div>
@@ -235,12 +277,10 @@ export default function RunResults() {
                   Back to Home
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {charts.map((chart: string, i: number) => (
-                  <div key={i} className="flex flex-col items-center">
-                    <div className="w-full aspect-square max-w-sm bg-white rounded-xl shadow-md overflow-hidden border border-slate-200">
-                      <ChartImage chartUrl={chart.startsWith('http') ? chart : `${API_BASE}${chart}`} />
-                    </div>
+                  <div key={i} className="aspect-square flex flex-col">
+                    <ChartImage chartUrl={chart.startsWith('http') ? chart : `${API_BASE}${chart}`} />
                   </div>
                 ))}
               </div>
@@ -318,25 +358,21 @@ function ChartImage({ chartUrl }: { chartUrl: string }) {
     loadImage()
   }, [chartUrl])
 
-  if (error) {
-    return (
-      <div className="w-full aspect-square bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center p-4">
-        <span className="text-slate-400 text-sm">Chart unavailable</span>
-      </div>
-    )
-  }
-
   return (
-    <div className="w-full aspect-square relative">
-      {loading ? (
-        <div className="w-full h-full bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center">
+    <div className="w-full h-full min-h-[280px] bg-white rounded-xl shadow-md flex flex-col">
+      {error ? (
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-slate-400 text-sm">Chart unavailable</span>
+        </div>
+      ) : loading ? (
+        <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin w-8 h-8 border-3 border-primary border-t-transparent rounded-full"></div>
         </div>
       ) : (
         <img
           src={base64}
           alt="Chart"
-          className="w-full h-full object-contain bg-white"
+          className="w-full h-full object-contain"
         />
       )}
     </div>

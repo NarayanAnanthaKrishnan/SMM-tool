@@ -1,42 +1,62 @@
-Purpose
+# AGENTS.md - Social Media Audit Tool
+
+## Purpose
 - Short, high-signal instructions for automated agents (OpenCode sessions) and humans who need to ramp fast or modify behavior without breaking the app.
 
-Quick entrypoints & commands
-- Run the FastAPI backend (development): `uvicorn app:app --reload --port 8000`
+## Quick Entry Points & Commands
+- Run the FastAPI backend (development): `uvicorn app:app --reload --port 8000` or `python -m uvicorn app:app --reload --port 8000`
 - Run the full CLI pipeline (extract → orchestrator): `python main.py <instagram_username>`
 - Run orchestrator directly (given an extracted JSON and optional run id): `python orchestrator.py <raw_payload.json> [run_id]`
 - Run extractor only (requires APIFY_API_TOKEN): `python extract.py <username>`
-- Test website scraping: `python web_scraper.py https://example.com`
+- Test website scraping: `python web_scraper.py <url>`
 - Inspect processed metrics (processor CLI): `python processor.py raw_payload.json`
+- Run frontend: `cd frontend && npm run dev`
 
-Top files to read first (in order)
-- `app.py` — HTTP API + background task entrypoint and the primary place to change web-facing behavior.
-- `main.py` — CLI wrapper that runs `extract.py` then `orchestrator.py`.
-- `orchestrator.py` — LangGraph workflow (processor → analyst → visualizer → outreach → generator). Heavy LLM integration here.
-- `processor.py` — pure-Python metrics and filters; deterministic and the ideal unit-test surface.
-- `extract.py` — Apify-based Instagram scraper (contains an import-time token check; see Gotchas).
-- `web_scraper.py` — Jina primary, Firecrawl fallback, content pruning logic.
+## Top Files to Read First (in order)
+1. `app.py` — HTTP API + background task entrypoint. Routes are defined here.
+2. `pipeline.py` — Heavy pipeline logic (extract → process → orchestrate). Keeps web layer small.
+3. `orchestrator.py` — LangGraph workflow (processor → analyst → visualizer → outreach → generator). LLM heavy.
+4. `processor.py` — Pure Python metrics and filters. Deterministic, test surface.
+5. `extract.py` — Apify-based Instagram scraper. Token check at runtime.
+6. `web_scraper.py` — Jina primary, Firecrawl fallback. Content pruning.
+7. `audit_chat.py` — Post-analysis chat logic. LLM-powered.
+8. `frontend/` — Next.js + TypeScript + Tailwind frontend application.
 
-Required environment variables
-- APIFY_API_TOKEN — REQUIRED if you run the extraction step or call `scrape_instagram`. Warning: earlier versions exited at import-time if missing; code now checks at call-time.
-- GOOGLE_API_KEY or GEMINI_API_KEY — required for LLM calls (orchestrator and /audit/{run_id}/chat).
-- FIRECRAWL_API_KEY — optional; used as premium fallback by web_scraper.py.
-- JINA_API_KEY (or JINA_API_KEYS) — optional; used by web_scraper.py primary path.
+## Required Environment Variables
+- `APIFY_API_TOKEN` — Required for extraction/scrape_instagram.
+- `GOOGLE_API_KEY` or `GEMINI_API_KEY` — LLM calls (orchestrator and chat).
+- `FIRECRAWL_API_KEY` — Optional, premium fallback for web scraping.
+- `JINA_API_KEY` or `JINA_API_KEYS` — Optional, primary for web scraping.
 
-Non-obvious architecture & runtime notes
-- Flow: `extract.py` → `processor.process_profile` → `orchestrator` (LangGraph) → outputs saved to `runs/{run_id}/`.
-- `app.py` runs audits via `BackgroundTasks.add_task(run_pipeline, ...)`. `run_pipeline` imports `orchestrator` lazily to avoid heavy startup costs.
-- `audit_status` in `app.py` is in-memory only; it does NOT survive restarts and is not shared across multiple uvicorn worker processes.
-- `orchestrator` compiles the state graph on import and initializes LLM clients — avoid importing it in contexts without credentials.
-- `processor.py` is deterministic and low-risk to change — prioritize unit tests here.
+## Architecture & Runtime Notes
+- **Flow**: extract.py → processor.process_profile → orchestrator (LangGraph) → outputs to `runs/{run_id}/`
+- `app.py` routes Heavy tasks delegated to `pipeline.run_pipeline` and `audit_chat.perform_audit_chat`.
+- `audit_status` in app.py is in-memory only. Not shared across workers. Use Redis/DB for production.
+- `orchestrator` compiles the graph on import and initializes LLM clients — avoid importing at startup without keys.
+- `processor.py` is deterministic. Ideal for unit tests.
 
-Important gotchas
-- extract.py previously called `sys.exit(1)` at import if APIFY_API_TOKEN was missing. That will crash FastAPI at startup because `app.py` imports extract on module load. The codebase now avoids exit-at-import and raises a clear error when the scraping function is invoked.
-- orchestrator imports/initializes LLM clients at module import; importing it without keys or dependencies may raise. app.py delays the import until the background pipeline starts — keep that pattern.
-- audit progress: `AuditProgress.STAGES` lists more stages than run_pipeline originally advanced. The pipeline now advances the intermediate stages to make frontend progress meaningful.
-- `audit_status` is not shared across processes — use Redis/DB if you need persistence or scaled workers.
-- run_id length differs: `main.py` uses 6 chars, `app.py` uses 8 chars. Not a functional bug, but be aware if matching run directories externally.
+## Important Gotchas & Bugs Fixed
+- **extract.py**: No longer exits at import-time when APIFY_API_TOKEN missing. Raises RuntimeError at call time instead.
+- **Float Inf**: Changed `float("inf")` to `999999` in processor.py for JSON compliance (fixed ValueError: Out of range float).
+- **CORS**: Added `*` and localhost:3001 to CORS allow_origins in app.py.
+- **run_id**: Type casting needed in Next.js pages for dynamic routes (fixed string|string[] issue).
 
-Recommended quick improvements (already included)
-1. Avoid import-time exits in libraries (done for extract.py).
-2. Advance audit progress through the listed stages for better frontend UX (done in app.py).
+## Frontend Notes
+- Frontend runs on port 3000 (or 3001 if 3000 in use).
+- API_BASE defaults to `http://localhost:8000` for local dev.
+- Tailwind CSS manually generated to `app/tailwind.css` due to config detection issues. Import in layout.tsx.
+- Charts displayed with base64 encoding for better reliability.
+- Theme toggle in both layout.tsx and results page.
+
+## Recent Changes (v2)
+- Added frontend with Next.js + TypeScript + Tailwind
+- Added ChatWidget for follow-up questions
+- Theme toggle (light/dark mode)
+- Charts standardized with uniform sizing
+- Fixed JSON serialization for edge cases
+
+## Recommended Quick Improvements
+1. Add Redis for status persistence (currently in-memory)
+2. Add unit tests for processor.process_profile
+3. Add PDF generation for report export
+4. Add authentication for production deployment
